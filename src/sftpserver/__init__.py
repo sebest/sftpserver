@@ -25,6 +25,7 @@
 __author__ = 'Ruslan Spivak <ruslan.spivak@gmail.com>'
 
 import os
+import signal
 import time
 import socket
 import optparse
@@ -50,6 +51,7 @@ def handle_connection(conn, host_key):
     channel = transport.accept()
     while transport.is_active():
         time.sleep(1)
+    conn.close()
 
 def start_server(host, port, keyfile, level):
     paramiko_level = getattr(paramiko.common, level)
@@ -59,6 +61,7 @@ def start_server(host, port, keyfile, level):
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
     server_socket.bind((host, port))
     server_socket.listen(BACKLOG)
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
     host_key = paramiko.RSAKey.from_private_key_file(keyfile)
 
