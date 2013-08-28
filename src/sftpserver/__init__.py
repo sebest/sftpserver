@@ -24,6 +24,7 @@
 
 __author__ = 'Ruslan Spivak <ruslan.spivak@gmail.com>'
 
+import os
 import time
 import socket
 import optparse
@@ -37,6 +38,18 @@ from sftpserver.stub_sftp import StubServer, StubSFTPServer
 HOST, PORT = 'localhost', 3373
 BACKLOG = 10
 
+def handle_connection(conn, host_key):
+    transport = paramiko.Transport(conn)
+    transport.add_server_key(host_key)
+    transport.set_subsystem_handler(
+        'sftp', paramiko.SFTPServer, StubSFTPServer)
+
+    server = StubServer()
+    transport.start_server(server=server)
+
+    channel = transport.accept()
+    while transport.is_active():
+        time.sleep(1)
 
 def start_server(host, port, keyfile, level):
     paramiko_level = getattr(paramiko.common, level)
@@ -47,22 +60,14 @@ def start_server(host, port, keyfile, level):
     server_socket.bind((host, port))
     server_socket.listen(BACKLOG)
 
+    host_key = paramiko.RSAKey.from_private_key_file(keyfile)
+
     while True:
         conn, addr = server_socket.accept()
-
-        host_key = paramiko.RSAKey.from_private_key_file(keyfile)
-        transport = paramiko.Transport(conn)
-        transport.add_server_key(host_key)
-        transport.set_subsystem_handler(
-            'sftp', paramiko.SFTPServer, StubSFTPServer)
-
-        server = StubServer()
-        transport.start_server(server=server)
-
-        channel = transport.accept()
-        while transport.is_active():
-            time.sleep(1)
-
+        childPid = os.fork()
+        if childPid == 0:
+            print 'new connection from %s:%s' % addr
+            handle_connection(conn, host_key)
 
 def main():
     usage = """\
